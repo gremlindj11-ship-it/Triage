@@ -1,0 +1,67 @@
+DIAGNOSIS_DEFINITIONS = {
+	"appendicitis": {
+		"evidence_weights": {
+			"right_lower_quadrant_pain": 3,
+			"pain_migration": 4,
+			"nausea": 1,
+			"vomiting": 1,
+		},
+		"context_modifiers": {},
+		"blockers": [],
+		"red_flags": [],
+	},
+	"ectopic_pregnancy": {
+		"evidence_weights": {
+			"lower_abdominal_pain": 2,
+			"vaginal_bleeding": 3,
+			"shoulder_tip_pain": 5,
+			"syncope": 5,
+		},
+		"context_modifiers": {
+			"pregnancy_possible": 1.5,
+		},
+		"blockers": [
+			{"context": "sex", "value": "male"},
+		],
+		"red_flags": ["syncope", "shoulder_tip_pain"],
+		"supporting_findings": [
+			"lower_abdominal_pain",
+			"vaginal_bleeding",
+			"shoulder_tip_pain",
+			"syncope",
+		],
+		"opposing_findings": ["male_sex"],
+		"discriminating_question": "Is pregnancy possible?",
+	},
+	"subarachnoid_haemorrhage": {
+		"evidence_weights": {
+			"thunderclap_headache": 5,
+			"sudden_onset_headache": 4,
+			"worst_headache_of_life": 4,
+			"severe_headache": 2,
+			"vomiting": 1,
+			"neck_stiffness": 3,
+			"photophobia": 2,
+			"reduced_consciousness": 5,
+			"seizures": 5,
+			"sentinel_headache": 3,
+		},
+		"context_modifiers": {},
+		"blockers": [],
+		"red_flags": ["thunderclap_headache", "reduced_consciousness", "seizures"],
+		"supporting_findings": [
+			"thunderclap_headache",
+			"sudden_onset_headache",
+			"worst_headache_of_life",
+			"severe_headache",
+			"vomiting",
+			"neck_stiffness",
+			"photophobia",
+			"reduced_consciousness",
+			"seizures",
+			"sentinel_headache",
+		],
+		"opposing_findings": ["gradual_onset_headache", "mild_headache"],
+		"discriminating_question": "Did the headache reach maximum intensity within seconds to minutes?",
+	},
+}
