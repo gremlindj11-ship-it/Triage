@@ -33,3 +33,6 @@ Thumbs.db
 
 # Local Claude Code settings (machine-specific, not shared)
 .claude/settings.local.json
+
+# Saved patient notes (local prototype data store, not shared)
+saved_notes.json

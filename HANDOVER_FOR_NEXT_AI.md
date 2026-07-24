@@ -358,10 +358,14 @@ If you skip step 3, the two diagnosis surfaces may silently diverge.
 - `test_web_app.py`: route contract and input escaping.
 - `test_system_integrity.py`: cross-cutting regressions.
 
-## Current Validation Snapshot (2026-07-22)
+## Current Validation Snapshot (2026-07-24)
 
-Ran every `test_*.py` file in the repo (17 files) via the repo's `.venv` interpreter under WSL.
+Ran every `test_*.py` file in the repo (still 17 files — `test_web_app.py` gained 3 new test
+functions for the `/notes` routes, no new files) via the repo's `.venv` interpreter under WSL.
 All pass (`test_pattern_layer.py` has no assertions — it's a smoke dump script, not a PASS/FAIL test).
+Also manually smoke-tested `/triage` and `/` via Flask's test client after the web UI change (see
+"Web UI Overhaul" section below) to confirm the primary panel actually renders from `condition_states`
+and not just that the test suite happens to still pass.
 
 ### What changed and why
 
@@ -420,6 +424,78 @@ updating the test string in `test_question_generation.py`, not the engine.
 This workspace has no git history, so "was this ever intentional" can only be inferred from code
 shape, not confirmed from commits. Both conclusions above are well-supported by cross-referencing
 other passing tests and dead-code evidence, but treat them as strong inference, not certainty.
+
+## Web UI Overhaul (2026-07-24)
+
+The web UI (`web_app.py`) previously surfaced raw pipeline internals as the primary view, and — this
+was the important part — its "Candidate Diagnoses" panel was reading `parsed.diagnosis_results`
+(the score-based engine, system 1), not `condition_states` (the rule-based reasoning engine, system
+2, the one CLAUDE.md and `ui.py`'s terminal renderer treat as the actual user-facing result). That
+was the core defect fixed here. This was a front-end/presentation-only change; nothing in `engine/*`,
+reasoning thresholds, or the `/triage` response shape changed.
+
+### What changed
+
+- **Primary result panel now reads `condition_states` / `investigations` / `safety_flags` /
+  `next_question`, never `parsed.diagnosis_results`.** `renderPrimaryResult(data)` in `web_app.py`
+  reads `data.condition_states` exclusively. The logic (main hypothesis text, supporting-evidence
+  vs. missing-requirements vs. exclusion section ordering, rule-label mapping) is a direct port of
+  `ui.py`'s terminal renderer (`_get_main_hypothesis_display_text`, `_get_section_specs`,
+  `_get_rule_label`, etc.) so the web UI and CLI now agree on what "the diagnosis" means. The
+  score-based `diagnosis_results` (system 1) is still shown, but only inside Technical Details,
+  explicitly labeled `"Score-Based Diagnoses (system 1, debug)"`.
+- **Technical Details collapsible** (`<details class="tech-details">`, closed by default) now holds
+  everything that used to be front-and-center: present/negated/uncertain assertions, derived/matched
+  terms, raw `clinical_state` (severity, context incl. `pregnancy_possible`/`sex`), `pattern_results`,
+  and the system-1 diagnosis list.
+- **Conversational `next_question` loop.** Client-side only, no new backend state — `/triage` stayed
+  stateless. Mirrors `main.py`'s existing CLI loop exactly: accumulate a `currentText` string, append
+  the user's typed answer (`"{current} {answer}"`, same join as `main.py`), re-POST the full text each
+  turn. Stops when `next_question` is null, the `present_feature_ids` set is unchanged from the
+  previous turn, or a 3-turn cap is hit (`MAX_TURNS`, same cap as `main.py`'s `max_turns`) — a manual
+  "Stop Asking" button was also added as an escape hatch (not explicitly requested, low-risk addition).
+  This stopping logic is **duplicated** in JS rather than shared with `main.py`'s loop; there was no
+  clean way to share it without a larger refactor of `main.py`, which was out of scope. If the CLI
+  loop's heuristics ever change, the web one will not follow automatically — check both.
+- **Saved notes.** Two new additive Flask routes, `GET /notes` and `POST /notes`, backed by a flat
+  `saved_notes.json` file at the repo root (gitignored — it will hold free-text note content).
+  `_load_notes()`/`_save_notes()` in `web_app.py` do plain `json.load`/`json.dump`, no locking. Tests
+  added in `test_web_app.py`: empty-list case, save-then-appears-in-list, and empty-text rejection
+  (400). This is a prototype-grade store — see risks below.
+
+### A real safety gap found and worked around, not just a design choice
+
+`reasoning.py`'s `safety_flags` (the reasoning-layer output the user asked to surface) only covers
+**syncope, shoulder tip pain, and haemodynamic instability/hypotension** (`_build_safety_flags` in
+`engine/reasoning.py`). It does **not** include thunderclap headache, neck stiffness, photophobia,
+reduced consciousness, or seizures — those only exist in the parser-layer `parsed.red_flags`
+(`engine/red_flag_engine.py`). Showing only `safety_flags` in the new emergency banner would have
+silently dropped visible coverage for those headache/neuro red flags versus the old UI. Fixed by
+having `getSafetyMessages(data)` in `web_app.py` union both sources (deduplicated) for display. This
+is a real, pre-existing split between the two red-flag systems (same shape as the two-diagnosis-engine
+split CLAUDE.md already warns about) — worth deciding, at some point, whether `_build_safety_flags`
+should be the canonical safety-flag source and get expanded to match `red_flag_engine.py`'s coverage,
+or whether the two are meant to stay separate. Not fixed here since it would touch reasoning logic.
+
+### New risks introduced by this UI change
+
+- **Two red-flag systems, now both visibly relied on in one UI surface.** See above — the web UI's
+  emergency banner now depends on both `safety_flags` and `parsed.red_flags` staying in sync in
+  coverage terms. If someone adds a new red-flag feature to only one of the two systems, the banner
+  will still show it (since it's a union), but the underlying inconsistency between the two systems
+  keeps growing untracked.
+- **`saved_notes.json` has no locking.** Fine for the single-process Flask dev server this app already
+  runs as (`app.run(debug=True, ...)`); would race under multiple workers/processes. Not an issue
+  today, worth remembering if this is ever containerized/scaled.
+- **Saved notes are plaintext on disk.** Acceptable for a local prototype; would need real storage
+  and access control before this app is anything other than a local tool.
+- **`renderPrimaryResult`'s top-condition selection is a direct port of `ui.py`'s `condition_states[0]`
+  approach**, not `reasoning.py`'s own internal `_get_top_condition_state` (which filters out
+  zero-score entries and picks by max `normalized_signal_score`, not list order). These two selection
+  algorithms are not provably identical in every case — `ui.py` has used the naive `[0]` approach for
+  the CLI all along, so this isn't a new risk introduced by the web UI, just an existing characteristic
+  now also relied on in a second place. Worth a closer look if the two engines are ever consolidated
+  (see the "Dual Diagnosis Engines Can Drift" problem below).
 
 ## Recommended First Move For The Next AI
 

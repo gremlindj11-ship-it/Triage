@@ -1,3 +1,8 @@
+import json
+import os
+import uuid
+from datetime import datetime, timezone
+
 from flask import Flask, jsonify, request
 
 import engine.language.seed
@@ -9,6 +14,21 @@ app = Flask(__name__)
 
 
 validate_language_alignment()
+
+
+NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_notes.json")
+
+
+def _load_notes() -> list:
+	if not os.path.exists(NOTES_FILE):
+		return []
+	with open(NOTES_FILE, "r", encoding="utf-8") as notes_file:
+		return json.load(notes_file)
+
+
+def _save_notes(notes: list) -> None:
+	with open(NOTES_FILE, "w", encoding="utf-8") as notes_file:
+		json.dump(notes, notes_file, indent=2)
 
 
 def _empty_case_payload() -> dict:
@@ -179,6 +199,22 @@ def index() -> str:
       box-shadow: 0 0 0 3px rgba(94, 139, 196, 0.12);
     }
 
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: #9fb5ca;
+      box-shadow: 0 0 0 3px rgba(94, 139, 196, 0.12);
+    }
+
     .input-meta {
       display: flex;
       justify-content: space-between;
@@ -208,6 +244,21 @@ def index() -> str:
       background: #455a6d;
     }
 
+    button.secondary {
+      background: #ffffff;
+      color: #455a6d;
+    }
+
+    button.secondary:hover {
+      background: #eef2f6;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .list-block + .list-block {
       margin-top: 14px;
     }
@@ -224,13 +275,27 @@ def index() -> str:
     .list-block ul,
     .reasoning-section ul,
     .timeline-list,
-    .state-list {
+    .state-list,
+    .signal-list {
       margin: 0;
       padding-left: 18px;
     }
 
     li + li {
       margin-top: 6px;
+    }
+
+    .signal-list li.signal-supporting {
+      color: var(--green);
+    }
+
+    .signal-list li.signal-contradiction,
+    .signal-list li.signal-rule_out {
+      color: var(--red);
+    }
+
+    .signal-list li.signal-temporal {
+      color: var(--amber);
     }
 
     .timeline-box {
@@ -240,63 +305,40 @@ def index() -> str:
       padding: 14px 16px;
     }
 
-    .diagnosis-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .diagnosis-card {
+    .hypothesis-block {
       border: 1px solid var(--line);
-      border-left-width: 6px;
       border-radius: 12px;
-      background: #ffffff;
-      padding: 14px 14px 14px 16px;
-      box-shadow: 0 4px 12px rgba(27, 39, 51, 0.05);
+      background: var(--panel-soft);
+      padding: 16px;
+      margin-bottom: 14px;
     }
 
-    .diagnosis-card.conf-high {
-      border-left-color: var(--green);
-    }
-
-    .diagnosis-card.conf-mid {
-      border-left-color: var(--amber);
-    }
-
-    .diagnosis-card.conf-low {
-      border-left-color: var(--grey);
-    }
-
-    .diagnosis-card.ruled-out {
-      border-left-color: #c9cfd6;
-      background: #f7f9fb;
-      color: var(--grey);
-      opacity: 0.82;
-    }
-
-    .diagnosis-topline {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .diagnosis-title {
+    .hypothesis-title {
       margin: 0;
-      font-size: 1.06rem;
+      font-size: 1.3rem;
       font-weight: 700;
     }
 
-    .diagnosis-subtitle {
+    .hypothesis-subtitle {
       margin: 6px 0 0;
       color: var(--muted);
-      font-size: 0.92rem;
+      font-size: 0.94rem;
     }
 
-    .diagnosis-tags {
-      display: flex;
-      flex-wrap: wrap;
+    .other-possibility-list {
+      display: grid;
       gap: 8px;
-      justify-content: flex-end;
+    }
+
+    .other-possibility-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 10px 12px;
     }
 
     .badge {
@@ -309,48 +351,19 @@ def index() -> str:
       letter-spacing: 0.03em;
     }
 
-    .badge.conf-high {
+    .badge.state-eligible {
       background: var(--green-soft);
       color: var(--green);
     }
 
-    .badge.conf-mid {
+    .badge.state-insufficient {
       background: var(--amber-soft);
       color: var(--amber);
     }
 
-    .badge.conf-low {
+    .badge.state-ruled_out {
       background: var(--grey-soft);
       color: var(--grey);
-    }
-
-    .badge.state-badge {
-      background: #eef2f6;
-      color: var(--muted);
-    }
-
-    .reasoning-card {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: #ffffff;
-      box-shadow: 0 4px 12px rgba(27, 39, 51, 0.05);
-      overflow: hidden;
-    }
-
-    .reasoning-card summary {
-      list-style: none;
-      cursor: pointer;
-      padding: 16px;
-    }
-
-    .reasoning-card summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .reasoning-content {
-      display: grid;
-      gap: 12px;
-      padding: 0 16px 16px;
     }
 
     .reasoning-section {
@@ -360,6 +373,10 @@ def index() -> str:
       padding: 12px 14px;
     }
 
+    .reasoning-section + .reasoning-section {
+      margin-top: 12px;
+    }
+
     .reasoning-section h4 {
       margin: 0 0 8px;
       color: var(--muted);
@@ -367,6 +384,32 @@ def index() -> str:
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+    }
+
+    .tech-details summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--panel-soft);
+      border-bottom: 1px solid var(--line);
+      list-style: none;
+    }
+
+    .tech-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .tech-details[open] summary {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tech-details .panel-body {
+      display: grid;
+      gap: 14px;
     }
 
     .red-flag-panel {
@@ -405,6 +448,82 @@ def index() -> str:
       font-weight: 700;
     }
 
+    .question-card {
+      border: 1px solid #cfdae3;
+      border-radius: 12px;
+      background: #eef4f9;
+      padding: 14px 16px;
+    }
+
+    .question-text {
+      margin: 0 0 4px;
+      font-weight: 700;
+      font-size: 1.02rem;
+    }
+
+    .question-reason {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .answer-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .answer-row input[type="text"] {
+      flex: 1 1 220px;
+    }
+
+    .status-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+
+    .notes-list {
+      display: grid;
+      gap: 8px;
+      margin: 0 0 12px;
+      padding: 0;
+      list-style: none;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .note-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-soft);
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    .note-item:hover {
+      border-color: var(--line-strong);
+      background: #eef2f6;
+    }
+
+    .note-item-timestamp {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .note-item-preview {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .muted,
     .empty-copy {
       color: var(--muted);
@@ -435,9 +554,9 @@ def index() -> str:
 <body>
   <div class="shell">
     <div class="page-header">
-      <p class="eyebrow">Two-Stage Clinical Reasoning</p>
+      <p class="eyebrow">Clinical Reasoning Engine</p>
       <h1>Clinical Triage</h1>
-      <p class="header-copy">Structured clinical note review with progressive reveal. Findings appear first, then the differential and reasoning.</p>
+      <p class="header-copy">Differential diagnosis, investigations, and safety flags, in plain language. Answer the next question to keep refining, or expand Technical Details to inspect raw pipeline internals.</p>
     </div>
 
     <div class="workspace">
@@ -450,23 +569,50 @@ def index() -> str:
             <textarea id="text" placeholder="Enter the patient note here"></textarea>
             <div class="input-meta">
               <p class="helper-text">Presentation only. Existing pipeline output is shown without changing reasoning, thresholds, or rule-outs.</p>
-              <button id="submit" type="button">Run Triage</button>
+              <div class="button-row">
+                <button id="reset" type="button" class="secondary">Start Over</button>
+                <button id="submit" type="button">Run Triage</button>
+              </div>
             </div>
           </div>
         </section>
-        <div id="top-output"></div>
-        <div id="left-output"></div>
+        <div id="conversation-output"></div>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Saved Notes</h2>
+          </div>
+          <div class="panel-body">
+            <ul class="notes-list" id="notes-list"></ul>
+            <button id="save-note" type="button" class="secondary">Save Current Note</button>
+          </div>
+        </section>
       </div>
-      <div class="column" id="right-output"></div>
+      <div class="column">
+        <div id="top-output"></div>
+        <div id="primary-output"></div>
+        <div id="tech-output"></div>
+      </div>
     </div>
   </div>
 
   <script>
     const submitButton = document.getElementById("submit");
+    const resetButton = document.getElementById("reset");
+    const saveNoteButton = document.getElementById("save-note");
     const textInput = document.getElementById("text");
+    const conversationOutput = document.getElementById("conversation-output");
+    const notesListEl = document.getElementById("notes-list");
     const topOutput = document.getElementById("top-output");
-    const leftOutput = document.getElementById("left-output");
-    const rightOutput = document.getElementById("right-output");
+    const primaryOutput = document.getElementById("primary-output");
+    const techOutput = document.getElementById("tech-output");
+
+    const MAX_TURNS = 3;
+    const RULE_LABELS = {
+      pregnancy_required: "No evidence of pregnancy",
+      male_context: "Male patient",
+    };
+
+    let conversation = null; // { currentText, previousFeatureIds, turnCount, done, lastData }
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -503,32 +649,6 @@ def index() -> str:
       return Array.isArray(items) && items.length > 0;
     }
 
-    function getDiagnosisResults(parsed) {
-      const diagnosisResults = Array.isArray(parsed.diagnosis_results) ? [...parsed.diagnosis_results] : [];
-      diagnosisResults.sort((left, right) => (right.confidence || 0) - (left.confidence || 0));
-      return diagnosisResults.slice(0, 3);
-    }
-
-    function getConfidenceClass(value) {
-      if (value >= 0.7) {
-        return "conf-high";
-      }
-
-      if (value >= 0.4) {
-        return "conf-mid";
-      }
-
-      return "conf-low";
-    }
-
-    function renderBulletList(items) {
-      if (!items || items.length === 0) {
-        return "";
-      }
-
-      return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
-    }
-
     function getParsed(data) {
       return data && data.parsed ? data.parsed : {};
     }
@@ -554,12 +674,41 @@ def index() -> str:
       return uniqueStrings(getDisplayFeatureIds(featureIds).map((featureId) => humanizeIdentifier(featureId)));
     }
 
-    function getSupportedDiagnoses(parsed) {
-      return getDiagnosisResults(parsed).filter((diagnosis) => diagnosis.state !== "ruled_out");
+    function getDiagnosisResults(parsed) {
+      const diagnosisResults = Array.isArray(parsed.diagnosis_results) ? [...parsed.diagnosis_results] : [];
+      diagnosisResults.sort((left, right) => (right.confidence || 0) - (left.confidence || 0));
+      return diagnosisResults.slice(0, 3);
     }
 
-    function getRuledOutDiagnoses(parsed) {
-      return getDiagnosisResults(parsed).filter((diagnosis) => diagnosis.state === "ruled_out");
+    function getConfidenceClass(value) {
+      if (value >= 0.7) {
+        return "conf-high";
+      }
+      if (value >= 0.4) {
+        return "conf-mid";
+      }
+      return "conf-low";
+    }
+
+    function renderBulletList(items) {
+      if (!items || items.length === 0) {
+        return "";
+      }
+      return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+    }
+
+    function renderPanel(title, body, extraClass = "") {
+      if (!body) {
+        return "";
+      }
+      return `<section class="panel ${extraClass}"><div class="panel-header"><h2>${escapeHtml(title)}</h2></div><div class="panel-body">${body}</div></section>`;
+    }
+
+    function renderListBlock(title, items) {
+      if (!hasItems(items)) {
+        return "";
+      }
+      return `<div class="list-block"><p class="section-label">${escapeHtml(title)}</p>${renderBulletList(items)}</div>`;
     }
 
     function getAssertionsByPolarity(parsed, polarity) {
@@ -567,84 +716,8 @@ def index() -> str:
       return assertions.filter((assertion) => assertion.polarity === polarity).map((assertion) => assertion.meaning_id);
     }
 
-    function getPatternForDiagnosis(parsed, diagnosisId) {
-      return (parsed.pattern_results || []).find((patternResult) => patternResult.id === diagnosisId) || null;
-    }
-
     function getAssertionById(parsed, assertionId) {
       return (parsed.assertions || []).find((assertion) => assertion.id === assertionId) || null;
-    }
-
-    function getConditionState(data, diagnosisId) {
-      return (data.condition_states || []).find((conditionState) => conditionState.id === diagnosisId) || null;
-    }
-
-    function getReasoningLabels(data, diagnosisId, signalType) {
-      const conditionState = getConditionState(data, diagnosisId);
-      if (!conditionState) {
-        return [];
-      }
-
-      return uniqueStrings(
-        (conditionState.signal_breakdown || [])
-          .filter((signalEntry) => signalEntry.type === signalType && signalEntry.label)
-          .map((signalEntry) => signalEntry.label)
-      );
-    }
-
-    function getSupportSignals(data, parsed, diagnosis) {
-      const pattern = getPatternForDiagnosis(parsed, diagnosis.diagnosis);
-      const patternSignals = pattern ? getDisplayFeatureLabels(pattern.matched) : [];
-      const assertionSignals = getDisplayFeatureLabels(getAssertionsByPolarity(parsed, "present"));
-      const derivedSignals = getDisplayFeatureLabels(parsed.derived_features || []);
-      const reasoningSignals = getReasoningLabels(data, diagnosis.diagnosis, "supporting");
-      return uniqueStrings([...reasoningSignals, ...patternSignals, ...assertionSignals, ...derivedSignals]).slice(0, 6);
-    }
-
-    function getRuledOutReason(parsed, diagnosis) {
-      const context = parsed.context || {};
-      if (diagnosis.diagnosis === "ectopic_pregnancy" && context.sex === "male") {
-        return "Ruled out by male sex context";
-      }
-      return "Ruled out by current context";
-    }
-
-    function getCompetingDiagnosisNotes(data, parsed, currentDiagnosisId) {
-      const supportedDiagnoses = getSupportedDiagnoses(parsed)
-        .filter((diagnosis) => diagnosis.diagnosis !== currentDiagnosisId)
-        .map((diagnosis) => `${humanizeIdentifier(diagnosis.diagnosis)} remains lower confidence at ${formatConfidence(diagnosis.confidence || 0)}`);
-      const ruledOutDiagnoses = getRuledOutDiagnoses(parsed)
-        .filter((diagnosis) => diagnosis.diagnosis !== currentDiagnosisId)
-        .map((diagnosis) => `${humanizeIdentifier(diagnosis.diagnosis)}: ${getRuledOutReason(parsed, diagnosis)}`);
-      const reasoningAgainst = getReasoningLabels(data, currentDiagnosisId, "contradiction");
-      const negatedEvidence = getAssertionsByPolarity(parsed, "negated").map((featureId) => `${humanizeIdentifier(featureId)} is negated`);
-      return uniqueStrings([...reasoningAgainst, ...ruledOutDiagnoses, ...supportedDiagnoses, ...negatedEvidence]).slice(0, 6);
-    }
-
-    function getDiscriminatingQuestions(data, parsed) {
-      const questions = [];
-      if (data && data.next_question && data.next_question.text) {
-        questions.push(data.next_question.text);
-      }
-      questions.push(...getAssertionsByPolarity(parsed, "uncertain").map((featureId) => `Clarify whether ${humanizeIdentifier(featureId).toLowerCase()} is actually present`));
-      if (parsed.clarification_question) {
-        questions.push(parsed.clarification_question);
-      }
-      return uniqueStrings(questions).slice(0, 3);
-    }
-
-    function getRedFlagMessages(parsed) {
-      return (parsed.red_flags || []).map((flag) => flag.message);
-    }
-
-    function getRedFlagTriggers(parsed) {
-      const triggerFeatureIds = ["thunderclap_headache", "neck_stiffness", "photophobia"];
-      const presentFeatures = new Set(parsed.present_feature_ids || []);
-      const matchedTriggers = triggerFeatureIds
-        .filter((featureId) => presentFeatures.has(featureId))
-        .map((featureId) => humanizeIdentifier(featureId));
-
-      return matchedTriggers.length > 0 ? matchedTriggers : getRedFlagMessages(parsed);
     }
 
     function getTimelineItems(parsed) {
@@ -679,21 +752,229 @@ def index() -> str:
       return uniqueStrings([...relationItems, ...derivedTemporalItems]);
     }
 
-    function renderPanel(title, body, extraClass = "") {
-      if (!body) {
-        return "";
-      }
+    // --------------------------------------------------------------
+    // Primary result: sourced from condition_states / investigations /
+    // safety_flags / next_question (the reasoning engine's actual
+    // user-facing output), ported from ui.py's terminal renderer so the
+    // web UI and CLI agree on what "the diagnosis" means.
+    // --------------------------------------------------------------
 
-      return `<section class="panel ${extraClass}"><div class="panel-header"><h2>${escapeHtml(title)}</h2></div><div class="panel-body">${body}</div></section>`;
+    function getTopConditionState(conditionStates) {
+      return hasItems(conditionStates) ? conditionStates[0] : null;
     }
 
-    function renderListBlock(title, items) {
-      if (!hasItems(items)) {
+    function getSecondaryConditionStates(conditionStates) {
+      return hasItems(conditionStates) ? conditionStates.slice(1) : [];
+    }
+
+    function getMainHypothesisText(conditionState) {
+      if (!conditionState) {
+        return "No clear diagnosis yet";
+      }
+      const diagnosticState = conditionState.diagnostic_state;
+      if (diagnosticState === "ruled_out") {
+        return "Not possible";
+      }
+      if (diagnosticState === "insufficient") {
+        return "More information needed";
+      }
+      if (diagnosticState === "eligible") {
+        return humanizeIdentifier(conditionState.id || "");
+      }
+      return "No clear diagnosis yet";
+    }
+
+    function getRuleLabel(ruleId) {
+      return RULE_LABELS[ruleId] || humanizeIdentifier(ruleId);
+    }
+
+    function getSupportingSignalEntries(conditionState) {
+      if (!conditionState) {
+        return [];
+      }
+      return (conditionState.signal_breakdown || []).filter((entry) =>
+        ["supporting", "temporal"].includes(entry.type || "supporting")
+      );
+    }
+
+    function getMissingRequirements(conditionState) {
+      if (!conditionState) {
+        return [];
+      }
+      const requirements = (conditionState.rules || {}).requirements || [];
+      return requirements
+        .filter((requirement) => requirement.status === "missing")
+        .map((requirement) => getRuleLabel(requirement.id || ""));
+    }
+
+    function getExclusions(conditionState) {
+      if (!conditionState) {
+        return [];
+      }
+      const exclusions = (conditionState.rules || {}).exclusions || [];
+      return exclusions.map((exclusion) => getRuleLabel(exclusion.id || ""));
+    }
+
+    function getDisplayMode(conditionState) {
+      if (!conditionState) {
+        return "insufficient";
+      }
+      if (conditionState.diagnostic_state === "ruled_out") {
+        return "exclusion";
+      }
+      if (hasItems(getMissingRequirements(conditionState))) {
+        return "requirement";
+      }
+      if (conditionState.should_display) {
+        return "hypothesis";
+      }
+      return "insufficient";
+    }
+
+    function getSectionSpecs(conditionState) {
+      const supportingSignals = getSupportingSignalEntries(conditionState);
+      const missingRequirements = getMissingRequirements(conditionState);
+      const exclusions = getExclusions(conditionState);
+      const displayMode = getDisplayMode(conditionState);
+
+      if (displayMode === "exclusion") {
+        return [
+          {title: "Excluded Because", items: exclusions, itemType: "text"},
+          {title: "Conflicting Evidence", items: supportingSignals, itemType: "signal"},
+        ];
+      }
+      if (displayMode === "requirement") {
+        return [
+          {title: "Still Needed To Confirm", items: missingRequirements, itemType: "text"},
+          {title: "Supporting Evidence", items: supportingSignals, itemType: "signal"},
+        ];
+      }
+      if (displayMode === "hypothesis") {
+        return [
+          {title: "Supporting Evidence", items: supportingSignals, itemType: "signal"},
+          {title: "Still Needed To Confirm", items: missingRequirements, itemType: "text"},
+        ];
+      }
+      return [{title: "Supporting Evidence", items: supportingSignals, itemType: "signal"}];
+    }
+
+    function formatSignalEntry(entry) {
+      const type = entry.type || "supporting";
+      const label = entry.label ? entry.label : humanizeIdentifier(entry.feature_id || "");
+      if (type === "contradiction") {
+        return `${label} (contradicts this diagnosis)`;
+      }
+      if (type === "temporal") {
+        return `${label} (timing modifier)`;
+      }
+      if (entry.strength) {
+        return `${label} (${entry.strength})`;
+      }
+      return label;
+    }
+
+    function renderSignalList(entries) {
+      if (!hasItems(entries)) {
         return "";
       }
-
-      return `<div class="list-block"><p class="section-label">${escapeHtml(title)}</p>${renderBulletList(items)}</div>`;
+      const items = entries
+        .map((entry) => `<li class="signal-${entry.type || "supporting"}">${escapeHtml(formatSignalEntry(entry))}</li>`)
+        .join("");
+      return `<ul class="signal-list">${items}</ul>`;
     }
+
+    function renderSectionSpec(spec) {
+      if (!hasItems(spec.items)) {
+        return "";
+      }
+      const body = spec.itemType === "signal" ? renderSignalList(spec.items) : renderBulletList(spec.items);
+      return `<section class="reasoning-section"><h4>${escapeHtml(spec.title)}</h4>${body}</section>`;
+    }
+
+    function renderOtherPossibilities(conditionStates) {
+      const secondary = getSecondaryConditionStates(conditionStates);
+      if (!hasItems(secondary)) {
+        return "";
+      }
+      const rows = secondary
+        .map((conditionState) => {
+          const stateClass = `state-${conditionState.diagnostic_state || "insufficient"}`;
+          const stateLabel = conditionState.diagnostic_state === "ruled_out" ? "Not possible" : (conditionState.diagnostic_state || "possible").replace("_", " ");
+          return `
+            <div class="other-possibility-row">
+              <span>${escapeHtml(humanizeIdentifier(conditionState.id || ""))}</span>
+              <span class="badge ${stateClass}">${escapeHtml(stateLabel)}</span>
+            </div>
+          `;
+        })
+        .join("");
+      return `<div class="list-block"><p class="section-label">Other Possibilities</p><div class="other-possibility-list">${rows}</div></div>`;
+    }
+
+    function renderInvestigations(data) {
+      const investigations = data.investigations || [];
+      if (!hasItems(investigations)) {
+        return "";
+      }
+      return `<div class="list-block"><p class="section-label">Recommended Investigations</p>${renderBulletList(investigations)}</div>`;
+    }
+
+    function renderPrimaryResult(data) {
+      const conditionStates = data.condition_states || [];
+      const topConditionState = getTopConditionState(conditionStates);
+      const hypothesisText = getMainHypothesisText(topConditionState);
+      const sectionSpecs = getSectionSpecs(topConditionState);
+
+      const stateClass = topConditionState ? `state-${topConditionState.diagnostic_state || "insufficient"}` : "";
+      const badge = topConditionState
+        ? `<span class="badge ${stateClass}">${escapeHtml((topConditionState.diagnostic_state || "").replace("_", " ") || "assessing")}</span>`
+        : "";
+
+      const sections = sectionSpecs.map(renderSectionSpec).filter(Boolean).join("");
+
+      const body = `
+        <div class="hypothesis-block">
+          <p class="hypothesis-title">${escapeHtml(hypothesisText)} ${badge}</p>
+          <p class="hypothesis-subtitle">Primary hypothesis from the clinical reasoning engine.</p>
+        </div>
+        ${sections}
+        ${renderOtherPossibilities(conditionStates)}
+        ${renderInvestigations(data)}
+      `;
+
+      return renderPanel("Clinical Assessment", body);
+    }
+
+    function getSafetyMessages(data) {
+      const parsed = getParsed(data);
+      const reasoningMessages = (data.safety_flags || []).map((flag) => flag.message).filter(Boolean);
+      const parserMessages = (parsed.red_flags || []).map((flag) => flag.message).filter(Boolean);
+      // Union of both red-flag sources: reasoning.py's safety_flags only covers a
+      // narrow set (syncope, shoulder tip pain, haemodynamic instability) and does
+      // not include thunderclap headache / neck stiffness / photophobia / reduced
+      // consciousness / seizures, which only the parser-layer red_flags cover.
+      // Showing only one would silently drop real red-flag coverage.
+      return uniqueStrings([...reasoningMessages, ...parserMessages]);
+    }
+
+    function renderSafetyBanner(data) {
+      const messages = getSafetyMessages(data);
+      if (!hasItems(messages)) {
+        return "";
+      }
+      return `
+        <section class="emergency-alert">
+          <p class="emergency-alert-title">⚠️ Possible emergency condition detected</p>
+          <ul>
+            ${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}
+          </ul>
+        </section>
+      `;
+    }
+
+    // --------------------------------------------------------------
+    // Technical details (debug only, collapsed by default)
+    // --------------------------------------------------------------
 
     function renderExtractedFindings(parsed) {
       const presentAssertions = getDisplayFeatureLabels(getAssertionsByPolarity(parsed, "present"));
@@ -709,15 +990,7 @@ def index() -> str:
         renderListBlock("Matched Terms", meaningMatches),
       ].filter(Boolean).join("");
 
-      return renderPanel("Extracted Findings", body);
-    }
-
-    function renderSubmittedNote(data) {
-      if (!data || !data.raw_input) {
-        return "";
-      }
-
-      return renderPanel("Submitted Note", `<pre class="note-preview">${escapeHtml(data.raw_input)}</pre>`);
+      return body ? `<section class="reasoning-section"><h4>Extracted Findings</h4>${body}</section>` : "";
     }
 
     function renderClinicalState(parsed) {
@@ -738,8 +1011,10 @@ def index() -> str:
         ...getDisplayFeatureIds(state.uncertain || []).map((item) => `Uncertain: ${humanizeIdentifier(item)}`),
       ];
 
-      const body = renderBulletList(stateLines);
-      return renderPanel("Clinical State", body);
+      if (!hasItems(stateLines)) {
+        return "";
+      }
+      return `<section class="reasoning-section"><h4>Clinical State (raw)</h4>${renderBulletList(stateLines)}</section>`;
     }
 
     function renderTimeline(parsed) {
@@ -747,61 +1022,42 @@ def index() -> str:
       if (!hasItems(timelineItems)) {
         return "";
       }
-
-      const body = `<div class="timeline-box"><ul class="timeline-list">${timelineItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
-      return renderPanel("Timeline", body);
+      return `<section class="reasoning-section"><h4>Timeline</h4><div class="timeline-box"><ul class="timeline-list">${timelineItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div></section>`;
     }
 
-    function renderCandidateDiagnoses(parsed) {
+    function renderScoreBasedDiagnoses(parsed) {
       const diagnoses = getDiagnosisResults(parsed);
       if (!hasItems(diagnoses)) {
         return "";
       }
-
-      const cards = diagnoses.map((diagnosis) => {
-        const confidenceClass = getConfidenceClass(diagnosis.confidence || 0);
-        const ruledOut = diagnosis.state === "ruled_out";
-        const stateLabel = ruledOut ? "Less likely" : (diagnosis.state || "possible");
-
-        return `
-          <article class="diagnosis-card ${confidenceClass} ${ruledOut ? "ruled-out" : ""}">
-            <div class="diagnosis-topline">
-              <div>
-                <p class="diagnosis-title">${escapeHtml(humanizeIdentifier(diagnosis.diagnosis))}</p>
-                <p class="diagnosis-subtitle">${escapeHtml(stateLabel)}</p>
-              </div>
-              <div class="diagnosis-tags">
-                <span class="badge ${confidenceClass}">${escapeHtml(formatConfidence(diagnosis.confidence || 0))}</span>
-                <span class="badge state-badge">${escapeHtml(diagnosis.state || "possible")}</span>
-              </div>
-            </div>
-          </article>
-        `;
-      }).join("");
-
-      return renderPanel("Candidate Diagnoses", `<div class="diagnosis-list">${cards}</div>`);
+      const rows = diagnoses
+        .map((diagnosis) => {
+          const confidenceClass = getConfidenceClass(diagnosis.confidence || 0);
+          return `<li>${escapeHtml(humanizeIdentifier(diagnosis.diagnosis))} — ${escapeHtml(diagnosis.state || "possible")} (confidence ${escapeHtml(formatConfidence(diagnosis.confidence || 0))}, ${confidenceClass.replace("conf-", "")})</li>`;
+        })
+        .join("");
+      return `<section class="reasoning-section"><h4>Score-Based Diagnoses (system 1, debug)</h4><ul>${rows}</ul></section>`;
     }
 
-    function renderReasoningSection(title, items) {
-      if (!hasItems(items)) {
+    function renderPatternResults(parsed) {
+      const patterns = parsed.pattern_results || [];
+      if (!hasItems(patterns)) {
         return "";
       }
-
-      return `<section class="reasoning-section"><h4>${escapeHtml(title)}</h4>${renderBulletList(items)}</section>`;
+      const rows = patterns
+        .map((pattern) => `<li>${escapeHtml(humanizeIdentifier(pattern.id))} — ${escapeHtml(pattern.status)} (score ${pattern.score})</li>`)
+        .join("");
+      return `<section class="reasoning-section"><h4>Pattern Results</h4><ul>${rows}</ul></section>`;
     }
 
-    function renderReasoningCard(data, diagnosis) {
+    function renderTechnicalDetails(data) {
       const parsed = getParsed(data);
-      const supportSignals = getSupportSignals(data, parsed, diagnosis);
-      const againstSignals = getCompetingDiagnosisNotes(data, parsed, diagnosis.diagnosis);
-      const questions = getDiscriminatingQuestions(data, parsed);
-      const redFlags = getRedFlagMessages(parsed);
-      const confidenceClass = getConfidenceClass(diagnosis.confidence || 0);
       const sections = [
-        renderReasoningSection("Why This Is Supported", supportSignals),
-        renderReasoningSection("Why Less Likely", againstSignals),
-        renderReasoningSection("Key Discriminating Question", questions.slice(0, 1)),
-        renderReasoningSection("Do-Not-Miss Red Flags", redFlags),
+        renderExtractedFindings(parsed),
+        renderClinicalState(parsed),
+        renderTimeline(parsed),
+        renderPatternResults(parsed),
+        renderScoreBasedDiagnoses(parsed),
       ].filter(Boolean).join("");
 
       if (!sections) {
@@ -809,93 +1065,209 @@ def index() -> str:
       }
 
       return `
-        <details class="reasoning-card" ${diagnosis.state === "ruled_out" ? "" : "open"}>
-          <summary>
-            <div class="diagnosis-topline">
-              <div>
-                <p class="diagnosis-title">${escapeHtml(humanizeIdentifier(diagnosis.diagnosis))}</p>
-                <p class="diagnosis-subtitle">${escapeHtml(diagnosis.state || "possible")}</p>
-              </div>
-              <div class="diagnosis-tags">
-                <span class="badge ${confidenceClass}">${escapeHtml(formatConfidence(diagnosis.confidence || 0))}</span>
-              </div>
-            </div>
-          </summary>
-          <div class="reasoning-content">${sections}</div>
+        <details class="panel tech-details">
+          <summary>Technical Details (debug)</summary>
+          <div class="panel-body">${sections}</div>
         </details>
       `;
     }
 
-    function renderReasoningStage(data) {
-      const parsed = getParsed(data);
-      const diagnoses = getDiagnosisResults(parsed);
-      const cards = diagnoses.map((diagnosis) => renderReasoningCard(data, diagnosis)).filter(Boolean).join("");
-      if (!cards) {
-        return "";
-      }
+    // --------------------------------------------------------------
+    // Conversational loop: mirrors main.py's CLI loop exactly (append
+    // the answer to the accumulated note text and re-run the full
+    // pipeline each turn -- no new backend state, /triage stays
+    // stateless). Stops when the feature set stops changing between
+    // turns, a turn cap is hit, or there is no next_question.
+    // --------------------------------------------------------------
 
-      return renderPanel("Reasoning", cards);
+    function featureSetsEqual(a, b) {
+      if (!a || !b) {
+        return false;
+      }
+      if (a.size !== b.size) {
+        return false;
+      }
+      for (const value of a) {
+        if (!b.has(value)) {
+          return false;
+        }
+      }
+      return true;
     }
 
-    function renderRedFlags(parsed) {
-      const triggerItems = getRedFlagTriggers(parsed);
-      if (!hasItems(triggerItems)) {
-        return "";
-      }
-
-      return `
-        <section class="emergency-alert">
-          <p class="emergency-alert-title">⚠️ Possible emergency condition detected</p>
-          <ul>
-            ${triggerItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-          </ul>
-        </section>
-      `;
-    }
-
-    function renderOutput(data) {
-      if (!data || !data.raw_input) {
-        topOutput.innerHTML = "";
-        leftOutput.innerHTML = "";
-        rightOutput.innerHTML = "";
+    function renderConversation() {
+      if (!conversation) {
+        conversationOutput.innerHTML = "";
         return;
       }
 
-      const parsed = getParsed(data);
-      const topPanels = renderRedFlags(parsed);
-      const leftPanels = [
-        renderSubmittedNote(data),
-        renderExtractedFindings(parsed),
-        renderClinicalState(parsed),
-        renderTimeline(parsed),
-      ].filter(Boolean).join("");
+      const data = conversation.lastData;
+      const notePreview = renderPanel("Submitted Note", `<pre class="note-preview">${escapeHtml(data.raw_input)}</pre>`);
 
-      const rightPanels = [
-        renderCandidateDiagnoses(parsed),
-        renderReasoningStage(data),
-      ].filter(Boolean).join("");
+      let questionBlock = "";
+      if (!conversation.done && data.next_question && data.next_question.text) {
+        questionBlock = `
+          <div class="question-card">
+            <p class="question-text">${escapeHtml(data.next_question.text)}</p>
+            <p class="question-reason">${escapeHtml(data.next_question.reason || "")}</p>
+            <div class="answer-row">
+              <input type="text" id="answer-input" placeholder="Type the answer...">
+              <button id="answer-submit" type="button">Submit Answer</button>
+              <button id="answer-stop" type="button" class="secondary">Stop Asking</button>
+            </div>
+          </div>
+        `;
+      } else if (conversation.done) {
+        questionBlock = `<p class="status-note">No further information changes the assessment. Final assessment shown on the right.</p>`;
+      }
 
-      topOutput.innerHTML = topPanels;
-      leftOutput.innerHTML = leftPanels;
-      rightOutput.innerHTML = rightPanels;
+      conversationOutput.innerHTML = renderPanel("Conversation", `${notePreview}${questionBlock}`);
+
+      const answerSubmit = document.getElementById("answer-submit");
+      const answerInput = document.getElementById("answer-input");
+      const answerStop = document.getElementById("answer-stop");
+
+      if (answerSubmit && answerInput) {
+        const submitAnswer = () => {
+          const answer = answerInput.value.trim();
+          if (!answer) {
+            return;
+          }
+          conversation.currentText = `${conversation.currentText} ${answer}`.trim();
+          runConversationTurn();
+        };
+        answerSubmit.addEventListener("click", submitAnswer);
+        answerInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            submitAnswer();
+          }
+        });
+      }
+
+      if (answerStop) {
+        answerStop.addEventListener("click", () => {
+          conversation.done = true;
+          renderConversation();
+        });
+      }
     }
 
-    submitButton.addEventListener("click", async () => {
+    function renderAll() {
+      if (!conversation) {
+        topOutput.innerHTML = "";
+        primaryOutput.innerHTML = "";
+        techOutput.innerHTML = "";
+        conversationOutput.innerHTML = "";
+        return;
+      }
+
+      const data = conversation.lastData;
+      topOutput.innerHTML = renderSafetyBanner(data);
+      primaryOutput.innerHTML = renderPrimaryResult(data);
+      techOutput.innerHTML = renderTechnicalDetails(data);
+      renderConversation();
+    }
+
+    async function runConversationTurn() {
+      const response = await fetch("/triage", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({text: conversation.currentText}),
+      });
+      const data = await response.json();
+
+      const currentFeatureIds = new Set(getParsed(data).present_feature_ids || []);
+      conversation.turnCount += 1;
+
+      const noNewInformation = conversation.previousFeatureIds !== null
+        && featureSetsEqual(conversation.previousFeatureIds, currentFeatureIds);
+      const turnCapReached = conversation.turnCount >= MAX_TURNS;
+      const noMoreQuestions = !data.next_question || !data.next_question.text;
+
+      conversation.lastData = data;
+      conversation.done = noNewInformation || turnCapReached || noMoreQuestions;
+      conversation.previousFeatureIds = currentFeatureIds;
+
+      renderAll();
+    }
+
+    submitButton.addEventListener("click", () => {
       const text = textInput.value.trim();
       if (!text) {
-        renderOutput(null);
+        return;
+      }
+      conversation = {
+        currentText: text,
+        previousFeatureIds: null,
+        turnCount: 0,
+        done: false,
+        lastData: null,
+      };
+      runConversationTurn();
+    });
+
+    resetButton.addEventListener("click", () => {
+      conversation = null;
+      textInput.value = "";
+      renderAll();
+    });
+
+    // --------------------------------------------------------------
+    // Saved notes
+    // --------------------------------------------------------------
+
+    function formatTimestamp(isoString) {
+      const parsed = new Date(isoString);
+      if (Number.isNaN(parsed.getTime())) {
+        return isoString || "";
+      }
+      return parsed.toLocaleString();
+    }
+
+    function renderSavedNotes(notes) {
+      if (!hasItems(notes)) {
+        notesListEl.innerHTML = '<p class="empty-copy">No saved notes yet.</p>';
         return;
       }
 
-      const response = await fetch("/triage", {
+      notesListEl.innerHTML = notes
+        .map((note) => `
+          <li class="note-item" data-note-id="${escapeHtml(note.id)}">
+            <p class="note-item-timestamp">${escapeHtml(formatTimestamp(note.timestamp))}</p>
+            <p class="note-item-preview">${escapeHtml(note.text)}</p>
+          </li>
+        `)
+        .join("");
+
+      notesListEl.querySelectorAll(".note-item").forEach((item, index) => {
+        item.addEventListener("click", () => {
+          textInput.value = notes[index].text;
+          conversation = null;
+          renderAll();
+        });
+      });
+    }
+
+    async function loadSavedNotes() {
+      const response = await fetch("/notes");
+      const notes = await response.json();
+      renderSavedNotes(notes);
+    }
+
+    saveNoteButton.addEventListener("click", async () => {
+      const text = (conversation ? conversation.currentText : textInput.value.trim());
+      if (!text) {
+        return;
+      }
+      await fetch("/notes", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({text}),
       });
-
-      const data = await response.json();
-      renderOutput(data);
+      await loadSavedNotes();
     });
+
+    loadSavedNotes();
   </script>
 </body>
 </html>
@@ -921,6 +1293,32 @@ def triage() -> tuple:
 			"next_question": case_payload["next_question"],
 		}
 	), 200
+
+
+@app.get("/notes")
+def list_notes() -> tuple:
+	notes = _load_notes()
+	notes.sort(key=lambda note: note.get("timestamp", ""), reverse=True)
+	return jsonify(notes), 200
+
+
+@app.post("/notes")
+def create_note() -> tuple:
+	request_data = request.get_json(silent=True) or {}
+	text = (request_data.get("text") or "").strip()
+
+	if not text:
+		return jsonify({"error": "text is required"}), 400
+
+	note = {
+		"id": uuid.uuid4().hex,
+		"timestamp": datetime.now(timezone.utc).isoformat(),
+		"text": text,
+	}
+	notes = _load_notes()
+	notes.append(note)
+	_save_notes(notes)
+	return jsonify(note), 201
 
 
 if __name__ == "__main__":
