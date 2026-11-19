@@ -31,7 +31,7 @@ python debug_cli.py "pain near belly button then moved to right lower abdomen an
 
 ## Licence
 
-No licence has been chosen yet, so all rights are reserved: you can read the code, but you can't reuse it without asking.
+Copyright © 2026 Sofia Vidal. Released under the GNU Affero General Public License v3.0 (see [LICENSE](LICENSE)). You can use, change and share it, as long as anything you build from it stays open under the same licence, including when it runs as a web service.
 
 ## Contact
 
